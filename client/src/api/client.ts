@@ -139,12 +139,11 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     json = JSON.parse(text) as ApiResponse<T>;
   } catch {
+    const preview = text.replace(/\s+/g, " ").slice(0, 160);
     const err = new Error(
-      text.startsWith("A server")
-        ? "API server error on Vercel. Check that COGNODB_URI and COGNODB_PASSWORD are set in Vercel Environment Variables, then redeploy."
-        : `API returned non-JSON (HTTP ${res.status}): ${text.slice(0, 120)}`
+      `API error (HTTP ${res.status}): ${preview || "empty response"}`
     ) as Error & { code?: string };
-    err.code = "DATABASE_UNAVAILABLE";
+    err.code = res.status >= 500 ? "DATABASE_UNAVAILABLE" : "QUERY_ERROR";
     throw err;
   }
 

@@ -281,9 +281,9 @@ Ensure `.env` is **not** committed (only `.env.example`).
    - **Output Directory:** `client/dist`
    - **Install Command:** `npm install`
 
-### 3. Environment variables
+### 3. Environment variables (required)
 
-In **Project Settings → Environment Variables**, add:
+In **Project Settings → Environment Variables**, add for **Production** and **Preview**:
 
 | Name | Value |
 |------|--------|
@@ -292,11 +292,15 @@ In **Project Settings → Environment Variables**, add:
 | `COGNODB_PASSWORD` | your CognoDB password |
 | `NODE_ENV` | `production` |
 
-Apply to **Production**, **Preview**, and **Development**.
+> Without these, the UI loads but every API call fails. Local `.env` is **never** uploaded to Vercel.
+
+After saving variables, click **Redeploy** (env changes do not apply to old deployments).
 
 ### 4. Deploy
 
 Click **Deploy**. First deploy takes ~2–3 minutes.
+
+Build runs: `npm run bundle:api` (CJS API bundle) → client Vite build.
 
 ### 5. Seed data (one-time, run locally)
 
