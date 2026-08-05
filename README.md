@@ -126,7 +126,7 @@ RETURN DISTINCT nodes(path) AS bridgeSkills
 | Driver | [neo4j-driver](https://www.npmjs.com/package/neo4j-driver) v5 (official Neo4j JS driver) |
 | Backend | Node.js, Express, TypeScript |
 | Frontend | React 18, Vite, Tailwind CSS, React Router |
-| Hosting | Render (see `render.yaml`) |
+| Hosting | [Vercel](https://vercel.com) (serverless API + static frontend) |
 
 ---
 
@@ -213,6 +213,8 @@ Serves the built React app and API from port 3001.
 
 ```
 skillpath-graph/
+├── api/                    # Vercel serverless entry (Express API)
+│   └── index.ts
 ├── client/                 # React frontend (Vite + Tailwind)
 │   └── src/
 │       ├── api/            # API client
@@ -220,6 +222,7 @@ skillpath-graph/
 │       └── pages/          # Dashboard, Skills, Path Finder, etc.
 ├── server/
 │   └── src/
+│       ├── app.ts          # Express app (shared: Vercel + local)
 │       ├── db/
 │       │   ├── driver.ts   # Neo4j driver + connection handling
 │       │   └── queries.ts  # All parameterized Cypher queries
@@ -227,7 +230,7 @@ skillpath-graph/
 │       └── seed/           # Seed data + loader script
 ├── docs/screenshots/       # UI screenshots for README
 ├── .env.example
-├── render.yaml             # Render deployment config
+├── vercel.json             # Vercel deployment config
 └── README.md
 ```
 
@@ -255,16 +258,71 @@ When CognoDB is unreachable, the API returns **503** with `{ code: "DATABASE_UNA
 
 ---
 
-## Deployment (Render)
+## Deployment (Vercel)
 
-1. Push repo to GitHub.
-2. Create a new **Web Service** on [Render](https://render.com) and connect the repo.
-3. Use `render.yaml` or set:
-   - **Build:** `npm install && npm run build`
-   - **Start:** `npm run start`
-4. Add environment variables: `COGNODB_URI`, `COGNODB_PASSWORD`, `COGNODB_USERNAME=cognodb`, `NODE_ENV=production`.
-5. Run `npm run seed` locally against your CognoDB instance (seed is not run on deploy).
-6. Add the live URL to this README.
+SkillPath deploys to **Vercel** as a single project:
+- **Frontend** → static files from `client/dist`
+- **API** → serverless Express function at `/api/*` (via `api/index.ts`)
+
+No credit card required on the Vercel Hobby plan.
+
+### 1. Push to GitHub
+
+Ensure `.env` is **not** committed (only `.env.example`).
+
+### 2. Import to Vercel
+
+1. Go to [vercel.com](https://vercel.com) and sign up with GitHub
+2. Click **Add New → Project**
+3. Import your `skillpath-graph` repository
+4. Vercel reads `vercel.json` automatically — no build settings to change:
+   - **Build Command:** `npm run build:vercel`
+   - **Output Directory:** `client/dist`
+   - **Install Command:** `npm install`
+
+### 3. Environment variables
+
+In **Project Settings → Environment Variables**, add:
+
+| Name | Value |
+|------|--------|
+| `COGNODB_URI` | `bolt+s://your-instance.databases.cognodb.com` |
+| `COGNODB_USERNAME` | `cognodb` |
+| `COGNODB_PASSWORD` | your CognoDB password |
+| `NODE_ENV` | `production` |
+
+Apply to **Production**, **Preview**, and **Development**.
+
+### 4. Deploy
+
+Click **Deploy**. First deploy takes ~2–3 minutes.
+
+### 5. Seed data (one-time, run locally)
+
+The seed script connects to your **cloud** CognoDB instance — run once from your machine:
+
+```bash
+npm run seed
+```
+
+### 6. Verify
+
+Open your Vercel URL (e.g. `https://skillpath-graph.vercel.app`):
+
+- Dashboard shows graph stats
+- Header: **CognoDB connected** (green)
+- Path Finder and Role Matcher work
+- `/api/health` returns `{ "status": "healthy" }`
+
+### Notes
+
+- **Cold starts:** First request after idle may take a few seconds (serverless + CognoDB connection).
+- **Do not set `VITE_API_URL`** on Vercel — the client uses same-origin `/api/...` paths.
+- **Local dev** is unchanged: `npm run dev` (Vite + Express on separate ports).
+
+### Alternative: Render / Koyeb
+
+For a traditional long-running Node server, use `npm run build && npm start` with `render.yaml` (see repo root).
 
 ---
 

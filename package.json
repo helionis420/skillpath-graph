@@ -10,12 +10,25 @@
   "scripts": {
     "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client && npm run build -w server",
+    "build:vercel": "npm run build -w client",
     "start": "npm run start -w server",
     "seed": "npm run seed -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
   },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "neo4j-driver": "^5.28.1",
+    "serverless-http": "^3.2.0"
+  },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.5",
+    "@vercel/node": "^5.0.4",
+    "concurrently": "^9.1.2",
+    "typescript": "^5.7.3"
   },
   "engines": {
     "node": ">=18"

@@ -1,6 +1,11 @@
 import dotenv from "dotenv";
+import path from "path";
+import { fileURLToPath } from "url";
 
-dotenv.config({ path: "../.env" });
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env from project root (works locally; Vercel injects env vars directly)
+dotenv.config({ path: path.resolve(__dirname, "../../.env") });
 dotenv.config();
 
 export const config = {
