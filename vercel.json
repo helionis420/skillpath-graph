@@ -1,13 +1,13 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "installCommand": "npm install --include=dev",
-  "buildCommand": "npm --workspace skillpath-client run build",
+  "buildCommand": "npm --workspace skillpath-server run build && npm --workspace skillpath-client run build",
   "outputDirectory": "client/dist",
   "framework": null,
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api"
+      "destination": "/api/$1"
     },
     {
       "source": "/((?!api/).*)",
@@ -15,9 +15,9 @@
     }
   ],
   "functions": {
-    "api/index.ts": {
+    "api/[...path].ts": {
       "maxDuration": 10,
-      "includeFiles": "server/src/**"
+      "includeFiles": "server/dist/**"
     }
   }
 }

@@ -134,7 +134,19 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
     ...options,
   });
 
-  const json: ApiResponse<T> = await res.json();
+  const text = await res.text();
+  let json: ApiResponse<T>;
+  try {
+    json = JSON.parse(text) as ApiResponse<T>;
+  } catch {
+    const err = new Error(
+      text.startsWith("A server")
+        ? "API server error on Vercel. Check that COGNODB_URI and COGNODB_PASSWORD are set in Vercel Environment Variables, then redeploy."
+        : `API returned non-JSON (HTTP ${res.status}): ${text.slice(0, 120)}`
+    ) as Error & { code?: string };
+    err.code = "DATABASE_UNAVAILABLE";
+    throw err;
+  }
 
   if (!json.success) {
     const err = new Error(json.error ?? "Request failed") as Error & { code?: string };
@@ -146,7 +158,22 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 }
 
 export const api = {
-  health: () => fetch(`${API_BASE}/api/health`).then((r) => r.json()) as Promise<HealthStatus>,
+  health: async () => {
+    const res = await fetch(`${API_BASE}/api/health`);
+    const text = await res.text();
+    try {
+      return JSON.parse(text) as HealthStatus;
+    } catch {
+      return {
+        success: false,
+        status: "unhealthy",
+        database: {
+          connected: false,
+          error: text.slice(0, 200) || `HTTP ${res.status}`,
+        },
+      };
+    }
+  },
 
   stats: () => fetchApi<GraphStats>("/api/stats"),
 
