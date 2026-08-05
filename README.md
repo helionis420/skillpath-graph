@@ -4,8 +4,8 @@
 
 Explore how tech skills connect, find learning paths between skills, match your skills to careers, and discover bridge skills between roles — all powered by graph traversals that would be awkward in SQL.
 
-> **Live demo:** _Add your Render/Railway URL after deployment_  
-> **Screen recording:** _Add Loom/YouTube link before submission_
+> **Live demo:** 
+https://www.loom.com/share/f6a464115f734ec5a1d097d9ca98e3b5
 
 ---
 
