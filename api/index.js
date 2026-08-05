@@ -1,8 +1,6 @@
 /**
- * Vercel serverless function handling every /api/* route.
- *
- * Delegates to the esbuild CommonJS bundle produced by `npm run bundle:api`.
- * The export is an Express app, which Vercel calls as (req, res).
+ * Single Vercel serverless entry for every /api/* route.
+ * Nested paths are rewritten here by vercel.json so /api/roles/:id works.
  */
 try {
   const bundle = require("./bundle.cjs");
