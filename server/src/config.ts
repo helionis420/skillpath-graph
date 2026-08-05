@@ -1,12 +1,34 @@
 import dotenv from "dotenv";
+import fs from "fs";
+import path from "path";
 
-// Local: load .env from cwd / parent. Vercel injects env vars — skip file load safely.
-try {
+/**
+ * Load .env for local dev.
+ * - `npm run dev -w server` runs with cwd = server/, so root .env is at ../.env
+ * - Vercel injects env vars; missing .env files are ignored
+ */
+function loadEnv(): void {
+  const candidates = [
+    path.resolve(process.cwd(), ".env"),
+    path.resolve(process.cwd(), "../.env"),
+    path.resolve(process.cwd(), "../../.env"),
+  ];
+
+  for (const envPath of candidates) {
+    try {
+      if (fs.existsSync(envPath)) {
+        dotenv.config({ path: envPath });
+        return;
+      }
+    } catch {
+      // ignore (e.g. restricted FS on serverless)
+    }
+  }
+
   dotenv.config();
-  dotenv.config({ path: ".env" });
-} catch {
-  // ignore missing .env in serverless
 }
+
+loadEnv();
 
 export const config = {
   port: parseInt(process.env.PORT ?? "3001", 10),
