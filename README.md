@@ -275,8 +275,9 @@ Ensure `.env` is **not** committed (only `.env.example`).
 1. Go to [vercel.com](https://vercel.com) and sign up with GitHub
 2. Click **Add New → Project**
 3. Import your `skillpath-graph` repository
-4. Vercel reads `vercel.json` automatically — no build settings to change:
-   - **Build Command:** `npm run build:vercel`
+4. **Important:** Under **Root Directory**, leave it as **`.`** (repo root) — do **not** set it to `server` or `client`
+5. Vercel reads `vercel.json` automatically — no build settings to change:
+   - **Build Command:** `npm --workspace skillpath-client run build`
    - **Output Directory:** `client/dist`
    - **Install Command:** `npm install`
 
@@ -316,6 +317,7 @@ Open your Vercel URL (e.g. `https://skillpath-graph.vercel.app`):
 
 ### Notes
 
+- **Root Directory must be empty** (repo root). If build fails with `Missing script: build:vercel` in `skillpath-server`, go to **Project Settings → General → Root Directory** and clear it, then redeploy.
 - **Cold starts:** First request after idle may take a few seconds (serverless + CognoDB connection).
 - **Do not set `VITE_API_URL`** on Vercel — the client uses same-origin `/api/...` paths.
 - **Local dev** is unchanged: `npm run dev` (Vite + Express on separate ports).

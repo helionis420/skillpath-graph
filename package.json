@@ -10,7 +10,8 @@
   "scripts": {
     "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
     "build": "npm run build -w client && npm run build -w server",
-    "build:vercel": "npm run build -w client",
+    "build:vercel": "npm --workspace skillpath-client run build",
+    "vercel-build": "npm --workspace skillpath-client run build",
     "start": "npm run start -w server",
     "seed": "npm run seed -w server",
     "typecheck": "npm run typecheck -w server && npm run typecheck -w client"
