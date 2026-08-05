@@ -1,8 +1,8 @@
 /**
- * Vercel serverless function for all /api/* routes.
+ * Vercel serverless function handling every /api/* route.
  *
- * Loads the esbuild CJS bundle from `npm run bundle:api`.
- * Importing server/dist ESM here crashes under Vercel ("A server error has occurred").
+ * Delegates to the esbuild CommonJS bundle produced by `npm run bundle:api`.
+ * The export is an Express app, which Vercel calls as (req, res).
  */
 try {
   const bundle = require("./bundle.cjs");
@@ -16,7 +16,7 @@ try {
         success: false,
         code: "BUNDLE_MISSING",
         error:
-          "API bundle missing. Ensure buildCommand runs `npm run bundle:api` before deploy.",
+          "API bundle missing. Ensure the build runs `npm run bundle:api` before deploy.",
         detail: err instanceof Error ? err.message : String(err),
       })
     );

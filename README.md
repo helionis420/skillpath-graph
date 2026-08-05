@@ -347,6 +347,10 @@ exposing secrets — the fastest way to tell a config problem from a network one
 
 Run the same probe locally with `npm run test:probe -w server`.
 
+To exercise the deployed code path before pushing, `npm run verify:vercel` builds the
+API bundle and invokes it exactly as Vercel does — `handler(req, res)` — asserting that
+`/api/diagnostics`, `/api/health`, and `/api/stats` all return JSON.
+
 ### Notes
 
 - **Root Directory must be empty** (repo root). If the build fails with `Missing script: build:vercel` in `skillpath-server`, clear **Project Settings → General → Root Directory** and redeploy.

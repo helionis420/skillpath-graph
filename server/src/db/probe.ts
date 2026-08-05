@@ -77,15 +77,22 @@ function connectTls(host: string, port: number, timeoutMs: number): Promise<void
  * Distinguishes DNS / TCP / TLS failures from Bolt-level auth errors.
  * Used by /api/diagnostics to explain why a deployment cannot reach CognoDB.
  */
-export async function probeDatabase(uri: string, timeoutMs = 4_000): Promise<ProbeResult> {
+export async function probeDatabase(uri: string, timeoutMs = 3_000): Promise<ProbeResult> {
   const { host, port, scheme } = parseBoltUri(uri);
 
   // lookup() uses the OS resolver (same path the driver takes); resolve4()
   // queries configured nameservers directly and can fail in sandboxes.
-  const dnsResult = await timed(async () => {
-    const records = await dns.promises.lookup(host, { all: true });
-    return records.map((r) => `${r.address} (IPv${r.family})`);
-  });
+  // DNS has no native timeout, so it is raced against one.
+  const dnsResult = await timed(() =>
+    Promise.race([
+      dns.promises
+        .lookup(host, { all: true })
+        .then((records) => records.map((r) => `${r.address} (IPv${r.family})`)),
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`DNS lookup timed out after ${timeoutMs}ms`)), timeoutMs)
+      ),
+    ])
+  );
   const tcpResult = await timed(() => connectTcp(host, port, timeoutMs));
 
   const needsTls = scheme.includes("+s");
