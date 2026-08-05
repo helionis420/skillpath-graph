@@ -9,6 +9,7 @@
     "start": "node dist/index.js",
     "seed": "tsx src/seed/index.ts",
     "test:db": "tsx src/test-connection.ts",
+    "test:probe": "tsx src/test-probe.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

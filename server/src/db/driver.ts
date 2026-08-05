@@ -1,16 +1,33 @@
 import neo4j, { Driver, Session } from "neo4j-driver";
+import dns from "dns";
 import { config } from "../config.js";
 
 /**
  * Serverless-safe CognoDB driver.
  *
- * Timeouts are deliberately shorter than the Vercel function limit so an
- * unreachable database returns a JSON 503 instead of FUNCTION_INVOCATION_TIMEOUT.
+ * Budget: every timeout must expire before the platform kills the function,
+ * otherwise the caller gets an opaque FUNCTION_INVOCATION_TIMEOUT (504)
+ * instead of an actionable JSON error.
+ *
+ *   TCP/TLS connect  4s
+ *   Query            7s
+ *   Vercel function 10s+ (see vercel.json)
  */
-const CONNECTION_TIMEOUT_MS = 8_000;
-const QUERY_TIMEOUT_MS = 15_000;
+const CONNECTION_TIMEOUT_MS = 4_000;
+const QUERY_TIMEOUT_MS = 7_000;
 
-/** Cache across warm invocations — module state can reset between cold starts. */
+/**
+ * Node 18+ returns DNS results in resolver order, which can put an unroutable
+ * IPv6 address first inside serverless runtimes — the socket then hangs until
+ * the platform timeout. Prefer IPv4.
+ */
+try {
+  dns.setDefaultResultOrder("ipv4first");
+} catch {
+  // Older runtimes without this API
+}
+
+/** Cached across warm invocations so repeat requests skip the TLS handshake. */
 const globalCache = globalThis as typeof globalThis & { __cognodbDriver?: Driver };
 
 export function getDriver(): Driver {
@@ -25,24 +42,19 @@ export function getDriver(): Driver {
     );
   }
 
-  globalCache.__cognodbDriver = neo4j.driver(
-    uri,
-    neo4j.auth.basic(username, password),
-    {
-      // One warm connection per serverless instance is plenty
-      maxConnectionPoolSize: 5,
-      connectionTimeout: CONNECTION_TIMEOUT_MS,
-      connectionAcquisitionTimeout: CONNECTION_TIMEOUT_MS,
-      maxTransactionRetryTime: 5_000,
-      maxConnectionLifetime: 60_000,
-      disableLosslessIntegers: true,
-    }
-  );
+  globalCache.__cognodbDriver = neo4j.driver(uri, neo4j.auth.basic(username, password), {
+    maxConnectionPoolSize: 5,
+    connectionTimeout: CONNECTION_TIMEOUT_MS,
+    connectionAcquisitionTimeout: CONNECTION_TIMEOUT_MS,
+    maxTransactionRetryTime: 3_000,
+    maxConnectionLifetime: 60_000,
+    disableLosslessIntegers: true,
+  });
 
   return globalCache.__cognodbDriver;
 }
 
-/** Reject instead of hanging past the platform's function timeout. */
+/** Rejects instead of hanging past the platform's function timeout. */
 async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   let timer: NodeJS.Timeout;
   const timeout = new Promise<never>((_, reject) => {
@@ -50,7 +62,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
       () =>
         reject(
           new Error(
-            `${label} timed out after ${ms}ms — CognoDB did not respond. Verify the instance is running and reachable.`
+            `${label} timed out after ${ms}ms — CognoDB did not respond. Check that the instance is running and reachable from this network.`
           )
         ),
       ms
@@ -64,10 +76,7 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, label: string): P
   }
 }
 
-export async function verifyConnection(): Promise<{
-  connected: boolean;
-  error?: string;
-}> {
+export async function verifyConnection(): Promise<{ connected: boolean; error?: string }> {
   try {
     await withTimeout(
       getDriver().verifyConnectivity(),
@@ -125,7 +134,7 @@ export async function runQuery<T>(
     const result = await withTimeout(session.run(cypher, params), QUERY_TIMEOUT_MS, "Query");
     return result.records.map((record) => normalizeValue(record.toObject()) as T);
   } finally {
-    // Never let a stuck session close block the response
+    // A stuck close must never hold the response open
     void session.close().catch(() => undefined);
   }
 }

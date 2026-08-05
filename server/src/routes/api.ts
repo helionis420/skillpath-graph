@@ -1,5 +1,6 @@
 import { Router, Request, Response, NextFunction } from "express";
 import { runQuery, runQuerySingle } from "../db/driver.js";
+import { probeDatabase } from "../db/probe.js";
 import { queries } from "../db/queries.js";
 import { validateConfig } from "../config.js";
 
@@ -72,20 +73,36 @@ apiRouter.get("/health", async (_req: Request, res: Response) => {
   }
 });
 
-/** Diagnostics — confirms env vars reached the deployment without exposing secrets. */
-apiRouter.get("/diagnostics", (_req: Request, res: Response) => {
+/**
+ * Diagnostics — reports configuration and network reachability without exposing
+ * secrets. Distinguishes "env vars missing" from "database unreachable".
+ */
+apiRouter.get("/diagnostics", async (_req: Request, res: Response) => {
   const uri = process.env.COGNODB_URI ?? "";
+  const configErrors = validateConfig();
+
+  let network: Awaited<ReturnType<typeof probeDatabase>> | { error: string } | null = null;
+  if (uri) {
+    try {
+      network = await probeDatabase(uri);
+    } catch (err) {
+      network = { error: err instanceof Error ? err.message : "Probe failed" };
+    }
+  }
+
   res.json({
     success: true,
     data: {
       runtime: process.env.VERCEL ? "vercel" : "node",
+      region: process.env.VERCEL_REGION ?? null,
       nodeVersion: process.version,
       env: {
         COGNODB_URI: uri ? `${uri.slice(0, 12)}…${uri.slice(-18)}` : null,
         COGNODB_USERNAME: process.env.COGNODB_USERNAME ?? null,
         COGNODB_PASSWORD: process.env.COGNODB_PASSWORD ? "set" : null,
       },
-      configErrors: validateConfig(),
+      configErrors,
+      network,
     },
   });
 });

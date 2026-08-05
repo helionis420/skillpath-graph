@@ -319,10 +319,39 @@ Open your Vercel URL (e.g. `https://skillpath-graph.vercel.app`):
 - Path Finder and Role Matcher work
 - `/api/health` returns `{ "status": "healthy" }`
 
+### Troubleshooting
+
+`GET /api/diagnostics` reports configuration and network reachability without
+exposing secrets — the fastest way to tell a config problem from a network one:
+
+```json
+{
+  "runtime": "vercel",
+  "env": { "COGNODB_URI": "bolt+s://db-…cognodb.com", "COGNODB_PASSWORD": "set" },
+  "configErrors": [],
+  "network": {
+    "dns": { "ok": true, "addresses": ["8.234.181.95 (IPv4)"], "ms": 7 },
+    "tcp": { "ok": true, "ms": 278 },
+    "tls": { "ok": true, "ms": 749 }
+  }
+}
+```
+
+| Symptom | Cause | Fix |
+|---------|-------|-----|
+| `COGNODB_PASSWORD: null` | Env vars not applied to this environment | Add them in Vercel, then **Redeploy** |
+| `dns.ok: false` | Hostname wrong or unresolvable | Re-copy the URI from the CognoDB console |
+| `tcp.ok: false` | Port 7687 blocked or instance stopped | Confirm the instance is running |
+| `tls.ok: false` | Certificate/scheme mismatch | Ensure the URI uses `bolt+s://` |
+| All `ok` but queries fail | Wrong password | Reset the password in CognoDB and update Vercel |
+
+Run the same probe locally with `npm run test:probe -w server`.
+
 ### Notes
 
-- **Root Directory must be empty** (repo root). If build fails with `Missing script: build:vercel` in `skillpath-server`, go to **Project Settings → General → Root Directory** and clear it, then redeploy.
-- **Cold starts:** First request after idle may take a few seconds (serverless + CognoDB connection).
+- **Root Directory must be empty** (repo root). If the build fails with `Missing script: build:vercel` in `skillpath-server`, clear **Project Settings → General → Root Directory** and redeploy.
+- **Timeout budget:** connect 4s, query 7s, function 30s — the database always fails before the platform does, so errors arrive as JSON rather than a 504.
+- **Cold starts:** the first request after idle may take a few seconds; the driver is cached across warm invocations.
 - **Do not set `VITE_API_URL`** on Vercel — the client uses same-origin `/api/...` paths.
 - **Local dev** is unchanged: `npm run dev` (Vite + Express on separate ports).
 
