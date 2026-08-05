@@ -3,11 +3,14 @@ import fs from "fs";
 import path from "path";
 
 /**
- * Load .env for local dev.
- * - `npm run dev -w server` runs with cwd = server/, so root .env is at ../.env
- * - Vercel injects env vars; missing .env files are ignored
+ * Local dev loads .env from the repo root; `npm run dev -w server` runs with
+ * cwd = server/, so the root file is one level up.
+ *
+ * On Vercel the platform injects environment variables directly — skip file IO.
  */
 function loadEnv(): void {
+  if (process.env.VERCEL) return;
+
   const candidates = [
     path.resolve(process.cwd(), ".env"),
     path.resolve(process.cwd(), "../.env"),
@@ -21,7 +24,7 @@ function loadEnv(): void {
         return;
       }
     } catch {
-      // ignore (e.g. restricted FS on serverless)
+      // Read-only or restricted filesystem — fall through to process env
     }
   }
 

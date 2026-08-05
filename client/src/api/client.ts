@@ -128,6 +128,18 @@ export { toNumber };
 
 const API_BASE = import.meta.env.VITE_API_URL ?? "";
 
+/** The API always returns JSON; anything else means the platform intercepted the request. */
+function describeNonJsonError(status: number, body: string): string {
+  if (status === 504 || body.includes("FUNCTION_INVOCATION_TIMEOUT")) {
+    return "The database did not respond in time. The CognoDB instance may be asleep or unreachable — wait a moment and retry.";
+  }
+  if (status === 404) {
+    return "API route not found. The server may still be deploying.";
+  }
+  const preview = body.replace(/\s+/g, " ").slice(0, 140);
+  return `API error (HTTP ${status}): ${preview || "empty response"}`;
+}
+
 async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     headers: { "Content-Type": "application/json", ...options?.headers },
@@ -139,10 +151,7 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
   try {
     json = JSON.parse(text) as ApiResponse<T>;
   } catch {
-    const preview = text.replace(/\s+/g, " ").slice(0, 160);
-    const err = new Error(
-      `API error (HTTP ${res.status}): ${preview || "empty response"}`
-    ) as Error & { code?: string };
+    const err = new Error(describeNonJsonError(res.status, text)) as Error & { code?: string };
     err.code = res.status >= 500 ? "DATABASE_UNAVAILABLE" : "QUERY_ERROR";
     throw err;
   }

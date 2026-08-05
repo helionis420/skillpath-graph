@@ -1,50 +1,64 @@
 import { Router, Request, Response, NextFunction } from "express";
-import { verifyConnection, runQuery, runQuerySingle } from "../db/driver.js";
+import { runQuery, runQuerySingle } from "../db/driver.js";
 import { queries } from "../db/queries.js";
+import { validateConfig } from "../config.js";
 
 export const apiRouter = Router();
 
-async function withDb<T>(
-  res: Response,
-  handler: () => Promise<T>
-): Promise<void> {
+/** Connection/config failures map to 503 so the UI can show a database-specific state. */
+function isUnavailableError(message: string): boolean {
+  return [
+    "connect",
+    "ECONNREFUSED",
+    "ENOTFOUND",
+    "ETIMEDOUT",
+    "credentials",
+    "not configured",
+    "timed out",
+    "ServiceUnavailable",
+    "SessionExpired",
+    "Unauthorized",
+    "authentication",
+  ].some((needle) => message.toLowerCase().includes(needle.toLowerCase()));
+}
+
+async function withDb<T>(res: Response, handler: () => Promise<T>): Promise<void> {
   try {
     const data = await handler();
     res.json({ success: true, data });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Database query failed";
-    const isConnectionError =
-      message.includes("connect") ||
-      message.includes("ECONNREFUSED") ||
-      message.includes("credentials") ||
-      message.includes("ServiceUnavailable");
+    const unavailable = isUnavailableError(message);
 
-    res.status(isConnectionError ? 503 : 500).json({
+    res.status(unavailable ? 503 : 500).json({
       success: false,
       error: message,
-      code: isConnectionError ? "DATABASE_UNAVAILABLE" : "QUERY_ERROR",
+      code: unavailable ? "DATABASE_UNAVAILABLE" : "QUERY_ERROR",
     });
   }
 }
 
 apiRouter.get("/health", async (_req: Request, res: Response) => {
-  const status = await verifyConnection();
-  if (!status.connected) {
+  const configErrors = validateConfig();
+  if (configErrors.length > 0) {
     res.status(503).json({
       success: false,
       status: "unhealthy",
-      database: status,
+      database: {
+        connected: false,
+        error: `Missing configuration: ${configErrors.join(", ")}`,
+      },
     });
     return;
   }
 
+  // Single round trip — verifyConnectivity() plus a query doubles cold-start latency
   try {
     const result = await runQuerySingle<{ nodeCount: number }>(queries.healthCheck);
-    const nodeCount = result?.nodeCount ?? 0;
     res.json({
       success: true,
       status: "healthy",
-      database: { connected: true, nodeCount },
+      database: { connected: true, nodeCount: result?.nodeCount ?? 0 },
     });
   } catch (err) {
     res.status(503).json({
@@ -56,6 +70,24 @@ apiRouter.get("/health", async (_req: Request, res: Response) => {
       },
     });
   }
+});
+
+/** Diagnostics — confirms env vars reached the deployment without exposing secrets. */
+apiRouter.get("/diagnostics", (_req: Request, res: Response) => {
+  const uri = process.env.COGNODB_URI ?? "";
+  res.json({
+    success: true,
+    data: {
+      runtime: process.env.VERCEL ? "vercel" : "node",
+      nodeVersion: process.version,
+      env: {
+        COGNODB_URI: uri ? `${uri.slice(0, 12)}…${uri.slice(-18)}` : null,
+        COGNODB_USERNAME: process.env.COGNODB_USERNAME ?? null,
+        COGNODB_PASSWORD: process.env.COGNODB_PASSWORD ? "set" : null,
+      },
+      configErrors: validateConfig(),
+    },
+  });
 });
 
 apiRouter.get("/stats", (req, res) =>
